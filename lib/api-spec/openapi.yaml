@@ -3,13 +3,21 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Task planning, live research, evidence, and consented memory for Butler
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: tasks
+    description: Multi-branch assistant tasks
+  - name: sources
+    description: Research evidence
+  - name: memory
+    description: User-consented memory
+  - name: dashboard
+    description: Workspace overview
 paths:
   /healthz:
     get:
@@ -24,7 +32,207 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /dashboard:
+    get:
+      operationId: getDashboard
+      tags: [dashboard]
+      summary: Get task dashboard summary
+      responses:
+        "200":
+          description: Dashboard summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardSummary"
+  /tasks:
+    get:
+      operationId: listTasks
+      tags: [tasks]
+      summary: List assistant tasks
+      responses:
+        "200":
+          description: Recent tasks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TaskSummary"
+    post:
+      operationId: createTask
+      tags: [tasks]
+      summary: Create and start a task
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TaskInput"
+      responses:
+        "201":
+          description: Created task
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaskDetail"
+  /tasks/{taskId}:
+    get:
+      operationId: getTask
+      tags: [tasks]
+      summary: Get task and branch state
+      parameters:
+        - $ref: "#/components/parameters/TaskId"
+      responses:
+        "200":
+          description: Task detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaskDetail"
+        "404":
+          description: Task not found
+  /tasks/{taskId}/events:
+    get:
+      operationId: streamTaskEvents
+      tags: [tasks]
+      summary: Stream task updates as server-sent events
+      parameters:
+        - $ref: "#/components/parameters/TaskId"
+      responses:
+        "200":
+          description: Task state updates
+          content:
+            text/event-stream:
+              schema:
+                type: string
+        "404":
+          description: Task not found
+  /tasks/{taskId}/branches/{branchId}:
+    get:
+      operationId: getBranch
+      tags: [tasks]
+      summary: Get branch evidence and details
+      parameters:
+        - $ref: "#/components/parameters/TaskId"
+        - $ref: "#/components/parameters/BranchId"
+      responses:
+        "200":
+          description: Branch detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Branch"
+        "404":
+          description: Branch not found
+  /tasks/{taskId}/sources:
+    get:
+      operationId: listTaskSources
+      tags: [sources]
+      summary: List the task source ledger
+      parameters:
+        - $ref: "#/components/parameters/TaskId"
+      responses:
+        "200":
+          description: Sources grouped by task branch
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Source"
+  /tasks/{taskId}/questions/{questionId}/answer:
+    post:
+      operationId: answerQuestion
+      tags: [tasks]
+      summary: Answer a pending structured question
+      parameters:
+        - $ref: "#/components/parameters/TaskId"
+        - name: questionId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/QuestionAnswerInput"
+      responses:
+        "200":
+          description: Updated task
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaskDetail"
+        "404":
+          description: Pending question not found
+  /tasks/{taskId}/handoff:
+    post:
+      operationId: updateHandoff
+      tags: [tasks]
+      summary: Confirm or cancel a safe booking handoff
+      parameters:
+        - $ref: "#/components/parameters/TaskId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HandoffInput"
+      responses:
+        "200":
+          description: Updated task handoff
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaskDetail"
+        "404":
+          description: Task not found
+  /memory:
+    get:
+      operationId: listMemory
+      tags: [memory]
+      summary: List consented memory
+      responses:
+        "200":
+          description: Remembered facts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MemoryFact"
+  /memory/{memoryId}:
+    delete:
+      operationId: deleteMemory
+      tags: [memory]
+      summary: Forget a remembered fact
+      parameters:
+        - name: memoryId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Memory removed
+        "404":
+          description: Memory not found
 components:
+  parameters:
+    TaskId:
+      name: taskId
+      in: path
+      required: true
+      schema:
+        type: string
+    BranchId:
+      name: branchId
+      in: path
+      required: true
+      schema:
+        type: string
   schemas:
     HealthStatus:
       type: object
@@ -33,4 +241,158 @@ components:
           type: string
       required:
         - status
+    TaskInput:
+      type: object
+      properties:
+        prompt:
+          type: string
+          minLength: 1
+          maxLength: 2000
+      required: [prompt]
+    TaskSummary:
+      type: object
+      properties:
+        id: { type: string }
+        title: { type: string }
+        prompt: { type: string }
+        status:
+          type: string
+          enum: [queued, running, waiting, blocked, done, failed]
+        branchCount: { type: integer }
+        sourceCount: { type: integer }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+      required: [id, title, prompt, status, branchCount, sourceCount, createdAt, updatedAt]
+    TaskDetail:
+      type: object
+      properties:
+        id: { type: string }
+        title: { type: string }
+        prompt: { type: string }
+        summary:
+          type: [string, "null"]
+        status:
+          type: string
+          enum: [queued, running, waiting, blocked, done, failed]
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        branches:
+          type: array
+          items:
+            $ref: "#/components/schemas/Branch"
+        question:
+          oneOf:
+            - $ref: "#/components/schemas/StructuredQuestion"
+            - type: "null"
+        handoff:
+          oneOf:
+            - $ref: "#/components/schemas/Handoff"
+            - type: "null"
+      required: [id, title, prompt, summary, status, createdAt, updatedAt, branches, question, handoff]
+    Branch:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        status:
+          type: string
+          enum: [queued, running, waiting, blocked, done, failed]
+        summary:
+          type: [string, "null"]
+        confidence:
+          type: [number, "null"]
+        sources:
+          type: array
+          items:
+            $ref: "#/components/schemas/Source"
+        openQuestions:
+          type: array
+          items: { type: string }
+        updatedAt: { type: string, format: date-time }
+      required: [id, name, status, summary, confidence, sources, openQuestions, updatedAt]
+    Source:
+      type: object
+      properties:
+        id: { type: string }
+        taskId: { type: string }
+        branchId: { type: string }
+        branchName: { type: string }
+        kind:
+          type: string
+          enum: [primary, secondary]
+        title: { type: string }
+        url: { type: string, format: uri }
+        snippet: { type: string }
+        retrievedAt: { type: string, format: date-time }
+        supportsClaim: { type: string }
+        provider:
+          type: string
+          enum: [Exa, Demo]
+        evidenceLabel: { type: string }
+      required: [id, taskId, branchId, branchName, kind, title, url, snippet, retrievedAt, supportsClaim, provider, evidenceLabel]
+    StructuredQuestion:
+      type: object
+      properties:
+        id: { type: string }
+        prompt: { type: string }
+        why: { type: string }
+        options:
+          type: array
+          items: { type: string }
+        status:
+          type: string
+          enum: [pending, answered]
+        answer:
+          type: [string, "null"]
+        consent:
+          type: [string, "null"]
+          enum: [once, this_task, always, never, "null"]
+      required: [id, prompt, why, options, status, answer, consent]
+    QuestionAnswerInput:
+      type: object
+      properties:
+        answer: { type: string, minLength: 1, maxLength: 500 }
+        consent:
+          type: string
+          enum: [once, this_task, always, never]
+      required: [answer, consent]
+    Handoff:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [not_needed, pending, handed_to_user, cancelled]
+        message: { type: string }
+      required: [status, message]
+    HandoffInput:
+      type: object
+      properties:
+        decision:
+          type: string
+          enum: [hand_to_user, cancel]
+      required: [decision]
+    MemoryFact:
+      type: object
+      properties:
+        id: { type: string }
+        fact: { type: string }
+        value: { type: string }
+        provenance: { type: string }
+        consentMode:
+          type: string
+          enum: [always, never]
+        createdAt: { type: string, format: date-time }
+      required: [id, fact, value, provenance, consentMode, createdAt]
+    DashboardSummary:
+      type: object
+      properties:
+        taskCount: { type: integer }
+        needsAttention: { type: integer }
+        running: { type: integer }
+        finished: { type: integer }
+        recentTasks:
+          type: array
+          items:
+            $ref: "#/components/schemas/TaskSummary"
+      required: [taskCount, needsAttention, running, finished, recentTasks]
 
