@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Laizysink Butler"
+description = "A prompt-first AI task assistant that plans multi-step research in parallel, shows source-backed findings, asks for consent when needed, and pauses before booking or payment actions."
+version = "1.0.0"
+id = "artifacts/butler-assistant"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 19025
+
+[services.development]
+run = "pnpm --filter @workspace/butler-assistant run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/butler-assistant", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/butler-assistant/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "19025"
+BASE_PATH = "/"

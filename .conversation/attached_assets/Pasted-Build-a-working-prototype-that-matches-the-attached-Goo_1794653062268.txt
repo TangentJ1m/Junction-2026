@@ -1,0 +1,42 @@
+Build a working prototype that matches the attached Google Stitch UI screens. Do NOT redesign the visuals. Treat the Stitch screens as the source of truth for layout, spacing, typography, and components. Implement the functionality below behind those screens.
+
+PRODUCT: “Laizysink / Butler” — a prompt-first AI assistant that completes multi-step tasks via a parallel task graph, Exa-powered live web research, structured user questions, permissioned memory, and visible source citations.
+
+CORE FLOW
+1. Home screen: user types or speaks a task (e.g. “Plan and book a trip to Japan for 2 people in October”). Show running tasks in the side rail and activity/sources in the right panel.
+2. On submit: create a task. A planner decomposes it into a DAG of nodes/branches (e.g. find hotel, find flights, ground transport, itinerary, packing list). Show queued/running/waiting/blocked/done states. Stream updates to the UI via WebSocket or SSE.
+3. Run independent research branches in parallel. Each branch calls Exa (or mock fallback) and returns a structured result: summary, key fields, primary source, secondary sources, highlighted snippets, timestamps, confidence, open questions.
+4. Master/merge node collects branch results, resolves conflicts, and updates the task detail view and global source ledger.
+5. If a branch needs user input, create a structured question card: question, why it is needed, 3–5 options, “Other” (type or speak), and consent controls (Use once / Remember for this task / Remember always / Don’t ask again). Answering resumes waiting branches.
+6. Branch detail screen: show the branch summary, evidence, photos/links, primary source prominently, secondary sources, snippets, confidence.
+7. Agent browser handoff: for actions like booking or payment, show a visible handoff/approval gate. Do NOT collect raw bank/card details. Show a secure “handed to user / payment required” state.
+8. Source ledger: group sources by task/branch. Show primary vs secondary, URL, title, snippet, retrieved time, and which claim/task it supports.
+
+EXA REQUIREMENTS
+- Use Exa for live retrieval. Prefer highlights and structured outputs.
+- Every Exa-backed claim must show a clickable source and a raw highlighted snippet.
+- Badge evidence as “Live Web / Exa” so it is clearly not LLM memory.
+- Add an 8-second timeout per branch, cache repeated queries, and fall back to mock data if the API fails.
+
+MEMORY
+- Store only consented facts (e.g. date of birth, guest count, budget).
+- Show provenance when reusing memory (“Found in Calendar / remembered from previous task”).
+- Support “use once” vs “remember always.”
+
+TECH
+- Frontend: React/Next (or whatever the attached Stitch export uses), wired to the backend.
+- Backend: FastAPI (preferred) or Node/Express. SQLite/Postgres for tasks, branches, sources, memory. WebSocket/SSE for live updates.
+- Env vars: EXA_API_KEY, GEMINI_API_KEY (optional). Never expose keys client-side.
+- Include a DEMO_MODE with realistic mock trip data so the demo works if APIs fail.
+
+DEMO SCRIPT TO SUPPORT
+Trip booking: parallel hotel/flight/transport/itinerary/packing branches → one structured question (e.g. guests/budget) → merge → source ledger → booking handoff gate. Judges should be able to type a live query and see Exa sources appear.
+
+ACCEPTANCE CRITERIA
+- UI matches attached Stitch screens.
+- Prompt creates a visible DAG with parallel branches and statuses.
+- Exa/mock sources are visible, clickable, and snippet-backed.
+- Structured question card works and resumes branches.
+- Source ledger works.
+- Booking/payment handoff is safe and does not expose bank details.
+- Demo works in DEMO_MODE without API keys.
